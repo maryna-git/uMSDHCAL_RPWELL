@@ -1,0 +1,143 @@
+//
+// ********************************************************************
+// * License and Disclaimer                                           *
+// *                                                                  *
+// * The  Geant4 software  is  copyright of the Copyright Holders  of *
+// * the Geant4 Collaboration.  It is provided  under  the terms  and *
+// * conditions of the Geant4 Software License,  included in the file *
+// * LICENSE and available at  http://cern.ch/geant4/license .  These *
+// * include a list of copyright holders.                             *
+// *                                                                  *
+// * Neither the authors of this software system, nor their employing *
+// * institutes,nor the agencies providing financial support for this *
+// * work  make  any representation or  warranty, express or implied, *
+// * regarding  this  software system or assume any liability for its *
+// * use.  Please see the license in the file  LICENSE  and URL above *
+// * for the full disclaimer and the limitation of liability.         *
+// *                                                                  *
+// * This  code  implementation is the result of  the  scientific and *
+// * technical work of the GEANT4 collaboration.                      *
+// * By using,  copying,  modifying or  distributing the software (or *
+// * any work based  on the software)  you  agree  to acknowledge its *
+// * use  in  resulting  scientific  publications,  and indicate your *
+// * acceptance of all terms of the Geant4 Software license.          *
+// ********************************************************************
+//
+// $Id: SteppingAction.cc,v 1.28 2008/05/29 16:59:27 vnivanch Exp $
+// GEANT4 tag $Name: geant4-09-02 $
+//
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#include "SteppingAction.hh"
+
+#include "DetectorConstruction.hh"
+#include "RunAction.hh"
+#include "EventAction.hh"
+#include "HistoManager.hh"
+
+#include "G4Step.hh"
+#include "G4UnitsTable.hh"
+#include "G4Positron.hh"
+#include "G4RunManager.hh"
+
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+SteppingAction::SteppingAction(DetectorConstruction* det, RunAction* run,
+                               EventAction* evt, HistoManager* hist)
+:G4UserSteppingAction(),detector(det),runAct(run),eventAct(evt),
+ histoManager(hist) 
+{ }
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+SteppingAction::~SteppingAction()
+{}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void SteppingAction::UserSteppingAction(const G4Step* aStep)
+{
+  //track informations
+  const G4StepPoint* prePoint = aStep->GetPreStepPoint();
+  //const G4StepPoint* endPoint = aStep->GetPostStepPoint();
+  const G4ParticleDefinition* particle = aStep->GetTrack()->GetDefinition();
+
+
+G4VPhysicalVolume* volume = prePoint->GetTouchableHandle()->GetVolume();
+  //if sum of absorbers do not fill exactly a layer: check material, not volume.
+  G4Material* mat = volume->GetLogicalVolume()->GetMaterial();
+//  if (mat == detector->GetWorldMaterial()) return;
+
+ // collect energy deposit
+  G4double edep = aStep->GetTotalEnergyDeposit();
+  //G4cout <<  " Deposited energy: " << G4BestUnit(edep,"Energy")   <<G4endl;
+
+  //G4cout <<  " pos Z : " << G4BestUnit(prePoint->GetPosition().z(),"Length")  <<G4endl;
+  //G4cout <<  " particle : " << particle->GetParticleName()  <<G4endl;
+
+  eventAct->SumEn(edep);
+  eventAct->n_step++;
+
+
+  //Digitisation
+
+  G4double dead = 0.01;
+
+  G4double dt = 350e-2;
+  G4double gain = 3500;
+  G4double W = 25;
+
+  G4int np = 0;
+  G4double sigt = 0;
+
+  G4double x = 0;
+  G4double y = 0;
+  G4double z = 0;
+
+  G4double denergy = 0;
+  G4double charge = 0;
+
+  denergy = aStep->GetTotalEnergyDeposit()*1e6;
+  x = prePoint->GetPosition().x()*0.1;
+  y = prePoint->GetPosition().y()*0.1;
+  z = prePoint->GetPosition().z()*0.1;
+
+  G4cout<<x<<" "<<y<<" "<<z<<" "<<G4BestUnit(z,"Length")<<" "<<denergy<<G4endl;
+
+
+  //calculate number of primary electrons
+  np = denergy / W;
+
+  G4cout<<"********************"<<G4endl;
+  G4cout<<"Number of primary e- = "<<denergy<<" / "<<W<<" = "<<np<<G4endl;
+  G4cout<<"********************"<<G4endl;
+
+  //loop over primaries
+  for (int j=0;j<np;j++)
+    {
+      histoManager->hx->Fill(x);
+      histoManager->hy->Fill(y);
+      histoManager->hz->Fill(z);
+
+      //calculate diffusion
+      if (0)
+	{
+	  sigt = dt*sqrt(-z-0.15);
+	  x += gRandom->Gaus(0,sigt);
+	  y += gRandom->Gaus(0,sigt);
+	}
+
+      //multiply electron
+      charge = gRandom->Exp(gain)*1.6e-4;
+	  
+      // get analysis manager
+      histoManager->hxytp->Fill(x,y,charge);
+      histoManager->hxyzm->Fill(x,y);
+    }
+
+
+
+
+}

@@ -1,0 +1,305 @@
+//
+// ********************************************************************
+// * License and Disclaimer                                           *
+// *                                                                  *
+// * The  Geant4 software  is  copyright of the Copyright Holders  of *
+// * the Geant4 Collaboration.  It is provided  under  the terms  and *
+// * conditions of the Geant4 Software License,  included in the file *
+// * LICENSE and available at  http://cern.ch/geant4/license .  These *
+// * include a list of copyright holders.                             *
+// *                                                                  *
+// * Neither the authors of this software system, nor their employing *
+// * institutes,nor the agencies providing financial support for this *
+// * work  make  any representation or  warranty, express or implied, *
+// * regarding  this  software system or assume any liability for its *
+// * use.  Please see the license in the file  LICENSE  and URL above *
+// * for the full disclaimer and the limitation of liability.         *
+// *                                                                  *
+// * This  code  implementation is the result of  the  scientific and *
+// * technical work of the GEANT4 collaboration.                      *
+// * By using,  copying,  modifying or  distributing the software (or *
+// * any work based  on the software)  you  agree  to acknowledge its *
+// * use  in  resulting  scientific  publications,  and indicate your *
+// * acceptance of all terms of the Geant4 Software license.          *
+// ********************************************************************
+//
+// $Id: DetectorConstruction.cc,v 1.23 2009/03/04 18:49:17 maire Exp $
+// GEANT4 tag $Name: geant4-09-03 $
+//
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#include "DetectorConstruction.hh"
+#include "DetectorMessenger.hh"
+
+#include "G4NistManager.hh"
+#include "G4Material.hh"
+#include "G4Box.hh"
+#include "G4LogicalVolume.hh"
+#include "G4PVPlacement.hh"
+#include "G4PVReplica.hh"
+#include "G4UniformMagField.hh"
+
+#include "G4GeometryManager.hh"
+#include "G4PhysicalVolumeStore.hh"
+#include "G4LogicalVolumeStore.hh"
+#include "G4SolidStore.hh"
+
+#include "G4UImanager.hh"
+#include "G4UnitsTable.hh"
+#include <iomanip>
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+DetectorConstruction::DetectorConstruction()
+:defaultMaterial(0),solidWorld(0),logicWorld(0),physiWorld(0),
+ soliduM(0),logicuM(0),physicuM(0),
+ solidCellLine(0),logicCellLine(0),physicCellLine(0),
+ solidCell(0),logicCell(0),physicCell(0)
+
+{
+  // default parameter values of the calorimeter
+
+  worldSize = 2*m;
+  nbCellX = 1 ;
+  nbCellY = 1;
+  cellSizeXY = 48.*cm;
+  cellThickness = 3.*mm;
+
+  uMSizeX = nbCellX * cellSizeXY;
+  uMSizeY = nbCellY * cellSizeXY;
+  uMThickness =  cellThickness;
+  
+  // materials
+  DefineMaterials();
+
+  defaultMaterial = G4NistManager::Instance()->FindOrBuildMaterial("Galactic");
+  if (defaultMaterial == NULL ){exit(-1);} 
+
+  cellMaterial = G4NistManager::Instance()->FindOrBuildMaterial("ArgonGas");
+  if (cellMaterial == NULL ){exit(-1);} 
+ 
+  // create commands for interactive definition of the calorimeter
+  detectorMessenger = new DetectorMessenger(this);
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+DetectorConstruction::~DetectorConstruction()
+{
+  delete detectorMessenger;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4VPhysicalVolume* DetectorConstruction::Construct()
+{
+  return ConstructCalorimeter();
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void DetectorConstruction::DefineMaterials()
+{
+  // This function illustrates the possible ways to define materials using 
+  // G4 database on G4Elements
+  G4NistManager* manager = G4NistManager::Instance();
+  manager->SetVerbose(0);
+  //
+  // define Elements
+  //
+  G4double z,a;
+
+/*
+  G4Element* H  = manager->FindOrBuildElement(1);
+  G4Element* C  = manager->FindOrBuildElement(6);
+  G4Element* N  = manager->FindOrBuildElement(7);
+  G4Element* O  = manager->FindOrBuildElement(8);
+  G4Element* Si = manager->FindOrBuildElement(14);
+  G4Element* Ge = manager->FindOrBuildElement(32);
+  G4Element* Sb = manager->FindOrBuildElement(51);
+  G4Element* I  = manager->FindOrBuildElement(53);
+  G4Element* Cs = manager->FindOrBuildElement(55);
+  G4Element* Pb = manager->FindOrBuildElement(82);
+  G4Element* Bi = manager->FindOrBuildElement(83);
+*/
+  //
+  // define an Element from isotopes, by relative abundance
+  //
+  G4int iz, n;                       //iz=number of protons  in an isotope;
+                                     // n=number of nucleons in an isotope;
+  G4int   ncomponents;				     
+  G4double abundance;				     
+
+  G4Isotope* U5 = new G4Isotope("U235", iz=92, n=235, a=235.01*g/mole);
+  G4Isotope* U8 = new G4Isotope("U238", iz=92, n=238, a=238.03*g/mole);
+
+  G4Element* U  = new G4Element("enriched Uranium", "U", ncomponents=2);
+  U->AddIsotope(U5, abundance= 90.*perCent);
+  U->AddIsotope(U8, abundance= 10.*perCent);
+
+  //
+  // define simple materials
+  //
+  G4double density;
+
+  new G4Material("liquidH2",    z=1.,  a= 1.008*g/mole,  density= 70.8*mg/cm3);
+  new G4Material("Aluminium",   z=13., a= 26.98*g/mole,  density= 2.700*g/cm3);
+  new G4Material("Titanium",    z=22., a= 47.867*g/mole, density= 4.54*g/cm3);
+  new G4Material("Iron",        z=26., a= 55.85*g/mole,  density= 7.870*g/cm3);
+  new G4Material("Copper",      z=29., a= 63.55*g/mole,  density= 8.960*g/cm3);
+  new G4Material("Tungsten",    z=74., a= 183.85*g/mole, density= 19.30*g/cm3);
+  new G4Material("Gold",        z=79., a= 196.97*g/mole, density= 19.32*g/cm3);
+  new G4Material("Uranium",     z=92., a= 238.03*g/mole, density= 18.95*g/cm3);
+
+  //
+  // define a material from elements.   case 1: chemical molecule
+  //
+
+  //
+  G4double temperature, pressure;
+  
+  
+  new G4Material("ArgonGas", z=18, a=39.948*g/mole, density= 1.782*mg/cm3,
+		 kStateGas, 273.15*kelvin, 1*atmosphere);
+  //
+  // examples of vacuum
+  //
+
+  density     = universe_mean_density;    //from PhysicalConstants.h
+  pressure    = 3.e-18*pascal;
+  temperature = 2.73*kelvin;
+  new G4Material("Galactic", z=1., a=1.008*g/mole, density,
+                             kStateGas,temperature,pressure);
+
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+G4VPhysicalVolume* DetectorConstruction::ConstructCalorimeter()
+{
+  // complete the Calor parameters ellX = ;
+
+  // Cleanup old geometry
+  G4GeometryManager::GetInstance()->OpenGeometry();
+  G4PhysicalVolumeStore::GetInstance()->Clean();
+  G4LogicalVolumeStore::GetInstance()->Clean();
+  G4SolidStore::GetInstance()->Clean();
+
+  //
+  // World
+  //
+
+  solidWorld = new G4Box("World",				//its name
+                   worldSize/2,worldSize/2,worldSize/2);	//its size
+
+  logicWorld = new G4LogicalVolume(solidWorld,		//its solid
+                                   defaultMaterial,	//its material
+                                   "World");		//its name
+
+  physiWorld = new G4PVPlacement(0,			//no rotation
+  				 G4ThreeVector(),	//at (0,0,0)
+                                 logicWorld,		//its logical volume
+                                 "World",		//its name
+                                 0,			//its mother  volume
+                                 false,			//no boolean operation
+                                 0);			//copy number
+  //
+  // Micromegas
+  //
+
+  soliduM = new G4Box("Micromegas",				     //its name
+    		       uMSizeX/2,uMSizeY/2,uMThickness/2);//size
+
+  logicuM = new G4LogicalVolume(soliduM,		//its solid
+      				   defaultMaterial,//defaultMaterial,	//its material
+      				   "Micromegas");	//its name
+
+  physicuM = new G4PVPlacement(0,			//no rotation
+                                 G4ThreeVector(),	//at (0,0,0)
+                                 logicuM,		//its logical volume
+                                 "Micromegas",		//its name
+                                 logicWorld,		//its mother  volume
+                                 false,			//no boolean operation
+                                 0);			//copy number
+
+  //
+  // CellLine
+  //
+  solidCellLine = new G4Box("CellLine",                               //its name
+                       uMSizeX/2,cellSizeXY/2,cellThickness/2); //size
+
+  logicCellLine = new G4LogicalVolume(solidCellLine,            //its solid
+                                   cellMaterial,        //its material
+                                   "CellLine");             //its name
+  if (nbCellY > 1)
+    physicCellLine = new G4PVReplica("CellLine",                //its name
+                                 logicCellLine,             //its logical volume
+                                 logicuM,               //its mother
+                                 kYAxis,                //axis of replication
+                                 nbCellY,               //number of replica
+                                 cellSizeXY);   //witdth of replica
+  else
+    physicCellLine = new G4PVPlacement(0,                   //no rotation
+                                   G4ThreeVector(),     //at (0,0,0)
+                                   logicCellLine,           //its logical volume
+                                   "CellLine",              //its name
+                                   logicuM,             //its mother  volume
+                                   false,               //no boolean operation
+                                   0);                  //copy number
+
+  //
+  // Cell
+  //
+  solidCell = new G4Box("Cell",		                      //its name
+                       cellSizeXY/2,cellSizeXY/2,cellThickness/2); //size
+
+  logicCell = new G4LogicalVolume(solidCell,		//its solid
+                                   cellMaterial,	//its material
+                                   "Cell");		//its name
+  if (nbCellX > 1|| nbCellY > 1)
+    physicCell = new G4PVReplica("Cell",		//its name
+      				 logicCell,		//its logical volume
+      				 logicCellLine,		//its mother
+                                 kXAxis,		//axis of replication
+                                 nbCellX,		//number of replica
+                                 cellSizeXY);	//witdth of replica
+  else
+    physicCell = new G4PVPlacement(0,			//no rotation
+                                   G4ThreeVector(),	//at (0,0,0)
+                                   logicCell,		//its logical volume
+                                   "Cell",		//its name
+                                   logicCellLine,		//its mother  volume
+                                   false,		//no boolean operation
+                                   0);			//copy number
+PrintCalorParameters();
+
+  //always return the physical World
+  //
+  return physiWorld;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void DetectorConstruction::PrintCalorParameters()
+{
+  G4cout << "\n-------------------------------------------------------------"
+         << "\n ---> The Miromegas is " << nbCellX << " cell along X direction";
+  G4cout << "\n-------------------------------------------------------------\n";
+  
+  G4cout << "\n ----> Micromegas material: " << defaultMaterial << G4endl;    
+  G4cout << "\n ----> Cell material: " << cellMaterial << G4endl;    
+
+  G4cout << "\n-------------------------------------------------------------\n";
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#include "G4RunManager.hh"
+
+void DetectorConstruction::UpdateGeometry()
+{
+  G4RunManager::GetRunManager()->DefineWorldVolume(ConstructCalorimeter());
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

@@ -1,0 +1,116 @@
+//
+// ********************************************************************
+// * License and Disclaimer                                           *
+// *                                                                  *
+// * The  Geant4 software  is  copyright of the Copyright Holders  of *
+// * the Geant4 Collaboration.  It is provided  under  the terms  and *
+// * conditions of the Geant4 Software License,  included in the file *
+// * LICENSE and available at  http://cern.ch/geant4/license .  These *
+// * include a list of copyright holders.                             *
+// *                                                                  *
+// * Neither the authors of this software system, nor their employing *
+// * institutes,nor the agencies providing financial support for this *
+// * work  make  any representation or  warranty, express or implied, *
+// * regarding  this  software system or assume any liability for its *
+// * use.  Please see the license in the file  LICENSE  and URL above *
+// * for the full disclaimer and the limitation of liability.         *
+// *                                                                  *
+// * This  code  implementation is the result of  the  scientific and *
+// * technical work of the GEANT4 collaboration.                      *
+// * By using,  copying,  modifying or  distributing the software (or *
+// * any work based  on the software)  you  agree  to acknowledge its *
+// * use  in  resulting  scientific  publications,  and indicate your *
+// * acceptance of all terms of the Geant4 Software license.          *
+// ********************************************************************
+//
+// $Id: EventAction.cc,v 1.18 2010/06/07 05:40:46 perl Exp $
+// GEANT4 tag $Name: geant4-09-04-beta-01 $
+//
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#include "EventAction.hh"
+
+#include "RunAction.hh"
+#include "HistoManager.hh"
+#include "G4UnitsTable.hh"
+
+
+#include "G4Event.hh"
+#include "TH1F.h"
+#include "TH2F.h"
+
+
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+EventAction::EventAction(DetectorConstruction* det, RunAction* run,
+                         HistoManager* hist)
+:n_step(0), detector(det), runAct(run), histoManager(hist), energyDep(0)
+
+{
+  drawFlag = "none";
+  printModulo = 10000;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+EventAction::~EventAction()
+{
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void EventAction::BeginOfEventAction(const G4Event* evt)
+{   
+  G4int evtNb = evt->GetEventID();
+
+  //survey printing
+    G4cout << G4endl << G4endl <<  "\n------------------> BEGIN OF EVENT " << evtNb << "------------------------------------------" << G4endl;
+
+	energyDep=0.;
+	n_step=0;
+ 
+    
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void EventAction::EndOfEventAction(const G4Event* evt)
+{
+  G4int evtNb = evt->GetEventID();
+  G4cout << " ---------------- END OF EVENT " << evtNb << " total deposited energy "  << G4BestUnit(energyDep,"Energy") << " Nb step: "  << n_step << "------" <<  G4endl;
+
+
+  G4int nhit = 0;
+  G4double thr = 1.;
+
+  G4int nxbin = histoManager->hxytp->GetNbinsX();
+  G4int nybin = histoManager->hxytp->GetNbinsY();
+
+  G4cout<<histoManager->hxytp->GetEntries()<<G4endl;
+
+  //generate hits
+  for (G4int xx=0;xx<nxbin;xx++)
+    {
+      for (G4int yy=0;yy<nybin;yy++)
+	{
+	  //if (histoManager->hxytp->GetBinContent(xx+1,yy+1) != 0){G4cout<<"Charge at "<<xx+1<<" "<<yy+1<<" "<<histoManager->hxytp->GetBinContent(xx+1,yy+1)<<G4endl;}
+	  if (histoManager->hxytp->GetBinContent(xx+1,yy+1) >= thr)
+	    {
+	      nhit++;
+	      //G4cout<<"hit at "<<xx+1<<" "<<yy+1<<G4endl;
+	      histoManager->hxy->SetBinContent(xx+1,yy+1,histoManager->hxy->GetBinContent(xx+1,yy+1)+1);
+	    }
+	}
+    }
+
+  histoManager->hnhit->Fill(nhit);
+  histoManager->hedep->Fill(energyDep*1e3);
+  histoManager->hnbstep->Fill(n_step);
+  histoManager->hxytp->Reset(); 
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+
