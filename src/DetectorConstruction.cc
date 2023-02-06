@@ -605,7 +605,7 @@ G4VPhysicalVolume* DetectorConstruction::ConstructCalorimeter()
       solidelectrode2[k] = new G4Box("electrode",electrodeSize/2,electrodeSize/2,electrodeThick/2);
       logicelectrode2[k] = new G4LogicalVolume(solidelectrode2[k],electrodeMaterial,"electrode");
       physielectrode2[k] = new G4PVPlacement(0,			//no rotation
-					G4ThreeVector(0,0,zposelectrode1),	//at (0,0,0)
+					G4ThreeVector(0,0,zposelectrode2),	//at (0,0,0) //fixed zposelectrode1 
 					logicelectrode2[k],	//its logical volume
 					"electrode",		//its name
 					logicWorld,		//its mother  volume

@@ -134,7 +134,7 @@ int main(int argc,char** argv) {
       TString bfield = argv[2];
       TString nevent = argv[3];
 
-	TString command0 = "/random/resetEngineFrom currentRun.rndm";
+      TString command0 = "/random/resetEngineFrom currentRun.rndm";
       TString command1 = "/gun/energy " + energy + " GeV";
       TString command2 = "/Bfield/setField " + bfield;
       TString command3 = "/run/beamOn " + nevent;
