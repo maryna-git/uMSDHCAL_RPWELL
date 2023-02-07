@@ -41,8 +41,8 @@ class G4VPhysicalVolume;
 class G4Material;
 class DetectorMessenger;
 
-const G4int numOfLayer = 1; //50;
-const G4int numOfLayer_RPWELL = 1; //50;
+const G4int numOfLayer = 50;
+const G4int numOfLayer_RPWELL = 50;
 
 
 
